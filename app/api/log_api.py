@@ -26,6 +26,15 @@ class CommandResult(BaseModel):
     output: Optional[str] = None
 
 
+def format_command_output(status: str, output: Optional[str]) -> str:
+    clean_output = (output or "").strip()
+    if status == "done":
+        return f"✅ {clean_output}" if clean_output else "✅ Выполнено"
+    if status == "failed":
+        return f"❌ {clean_output}" if clean_output else "❌ Ошибка выполнения"
+    return clean_output or "ℹ️ Команда завершена"
+
+
 @router.post("/")
 def receive_log(log: LogEntry, session: Session = Depends(get_session)):
     log_record = DeviceStatus(
@@ -71,7 +80,7 @@ def save_command_result(
     if not command:
         raise HTTPException(status_code=404, detail="Command not found")
 
-    command.output = f"[{result.status}] {result.output or ''}".strip()
+    command.output = format_command_output(result.status, result.output)
     command.executed_at = datetime.utcnow()
     command.status = "waiting"
     session.add(command)

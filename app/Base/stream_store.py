@@ -28,5 +28,9 @@ class StreamFrameStore:
                 return None
             return item.frame
 
+    def remove_frame(self, device_name: str):
+        with self._lock:
+            self._frames.pop(device_name, None)
+
 
 stream_frame_store = StreamFrameStore()

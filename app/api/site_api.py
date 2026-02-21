@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from PIL import Image, ImageDraw
 from pydantic import BaseModel
-from sqlmodel import Session, func, select
+from sqlmodel import Session, delete, func, select
 
 from app.Base.db import get_session
 from app.Base.models import DeviceStatus, RemoteCommand
@@ -32,6 +32,15 @@ def build_placeholder_frame(device_name: str) -> bytes:
     buf = BytesIO()
     image.save(buf, format="JPEG", quality=70)
     return buf.getvalue()
+
+
+def command_status_label(status: str) -> str:
+    mapping = {
+        "pending": "🕒 В очереди",
+        "in_progress": "⚙️ Выполняется",
+        "waiting": "✅ Завершена",
+    }
+    return mapping.get(status, status)
 
 
 @router.get("/devices")
@@ -95,6 +104,7 @@ def get_latest_devices(session: Session = Depends(get_session)):
                     "id": latest_command.id,
                     "name": latest_command.command,
                     "status": latest_command.status,
+                    "status_label": command_status_label(latest_command.status),
                     "output": latest_command.output,
                     "created_at": latest_command.created_at.isoformat(),
                     "executed_at": latest_command.executed_at.isoformat()
@@ -127,6 +137,25 @@ def create_remote_command(
     return {"id": command.id, "status": command.status, "command": command.command}
 
 
+@router.delete("/devices/{device_name}")
+def delete_device(device_name: str, session: Session = Depends(get_session)):
+    deleted_statuses = session.exec(
+        delete(DeviceStatus).where(DeviceStatus.device_name == device_name)
+    )
+    deleted_commands = session.exec(
+        delete(RemoteCommand).where(RemoteCommand.device_name == device_name)
+    )
+    session.commit()
+    stream_frame_store.remove_frame(device_name)
+
+    return {
+        "status": "deleted",
+        "device_name": device_name,
+        "deleted_logs": deleted_statuses.rowcount or 0,
+        "deleted_commands": deleted_commands.rowcount or 0,
+    }
+
+
 @router.get("/devices/{device_name}/commands/latest")
 def get_latest_command(device_name: str, session: Session = Depends(get_session)):
     stmt = (
@@ -143,6 +172,7 @@ def get_latest_command(device_name: str, session: Session = Depends(get_session)
             "id": command.id,
             "name": command.command,
             "status": command.status,
+            "status_label": command_status_label(command.status),
             "output": command.output,
             "created_at": command.created_at.isoformat(),
             "executed_at": command.executed_at.isoformat() if command.executed_at else None,

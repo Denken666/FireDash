@@ -13,15 +13,11 @@
             --card-border: rgba(178, 129, 255, 0.34);
             --text-main: #f5eeff;
             --text-soft: #bca8df;
-            --accent: #b170ff;
-            --accent-2: #7f8dff;
             --ok: #39d39a;
             --bad: #ff6f98;
             --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
         }
-
         * { box-sizing: border-box; }
-
         body {
             margin: 0;
             min-height: 100vh;
@@ -33,9 +29,7 @@
                 linear-gradient(160deg, var(--bg-a) 0%, var(--bg-b) 45%, var(--bg-c) 100%);
             padding: 28px;
         }
-
         .page { max-width: 1280px; margin: 0 auto; }
-
         .hero {
             border-radius: 22px;
             border: 1px solid var(--card-border);
@@ -45,16 +39,9 @@
             padding: 22px;
             margin-bottom: 18px;
         }
-
         .hero h1 { margin: 0; font-size: clamp(1.3rem, 2.6vw, 2.05rem); }
         .hero p { margin: 8px 0 0; color: var(--text-soft); }
-
-        #devices {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-            gap: 14px;
-        }
-
+        #devices { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
         .device {
             border-radius: 18px;
             border: 1px solid var(--card-border);
@@ -66,18 +53,12 @@
         }
         .device:hover { transform: translateY(-2px); border-color: rgba(211, 183, 255, .65); }
         .device p { margin: .35rem 0; color: #eadfff; }
-
+        .device-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+        .device-title { font-weight: 700; font-size: 1.02rem; overflow: hidden; text-overflow: ellipsis; }
         .label { color: var(--text-soft); font-weight: 600; margin-right: 6px; }
         .online { color: var(--ok); }
         .offline { color: var(--bad); }
-
-        .actions {
-            margin-top: .95rem;
-            display: flex;
-            flex-wrap: wrap;
-            gap: .5rem;
-        }
-
+        .actions { margin-top: .95rem; display: flex; flex-wrap: wrap; gap: .5rem; }
         .fd-btn {
             appearance: none;
             -webkit-appearance: none;
@@ -91,21 +72,16 @@
             cursor: pointer;
             transition: transform .15s ease, filter .15s ease, border-color .15s ease;
         }
-        .fd-btn:hover {
-            transform: translateY(-1px);
-            filter: brightness(1.08);
-            border-color: rgba(238, 219, 255, .82) !important;
-        }
+        .fd-btn:hover { transform: translateY(-1px); filter: brightness(1.08); border-color: rgba(238, 219, 255, .82) !important; }
         .fd-btn:active { transform: translateY(0); }
-        .fd-btn-danger {
-            background: linear-gradient(180deg, rgba(194, 74, 128, .56), rgba(120, 28, 70, .62)) !important;
-            border-color: rgba(255, 165, 197, .52) !important;
+        .fd-btn-danger { background: linear-gradient(180deg, rgba(194, 74, 128, .56), rgba(120, 28, 70, .62)) !important; border-color: rgba(255, 165, 197, .52) !important; }
+        .fd-btn-stream { background: linear-gradient(180deg, rgba(91, 120, 255, .5), rgba(52, 69, 154, .55)) !important; border-color: rgba(170, 186, 255, .45) !important; }
+        .fd-btn-delete {
+            background: linear-gradient(180deg, rgba(255, 120, 150, .32), rgba(124, 40, 67, .45)) !important;
+            border-color: rgba(255, 174, 198, .55) !important;
+            padding: .34rem .52rem;
+            min-width: 40px;
         }
-        .fd-btn-stream {
-            background: linear-gradient(180deg, rgba(91, 120, 255, .5), rgba(52, 69, 154, .55)) !important;
-            border-color: rgba(170, 186, 255, .45) !important;
-        }
-
         .stream-container {
             margin-top: .95rem;
             display: none;
@@ -114,49 +90,13 @@
             padding: 10px;
             background: rgba(11, 7, 24, .65);
         }
-        .stream-toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-            color: var(--text-soft);
-            font-size: .9rem;
-        }
-        .stream-wrapper {
-            position: relative;
-            width: 100%;
-            background: #0b0814;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        .stream-image {
-            width: 100%;
-            display: block;
-            border: 1px solid rgba(210, 187, 255, .2);
-            border-radius: 10px;
-            background: #0f0b1b;
-        }
-
+        .stream-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: var(--text-soft); font-size: .9rem; }
+        .stream-wrapper { position: relative; width: 100%; background: #0b0814; border-radius: 10px; overflow: hidden; }
+        .stream-image { width: 100%; display: block; border: 1px solid rgba(210, 187, 255, .2); border-radius: 10px; background: #0f0b1b; }
         .stream-wrapper:fullscreen,
-        .stream-wrapper:-webkit-full-screen {
-            width: 100vw;
-            height: 100vh;
-            border-radius: 0;
-            background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
+        .stream-wrapper:-webkit-full-screen { width: 100vw; height: 100vh; border-radius: 0; background: #000; display: flex; align-items: center; justify-content: center; }
         .stream-wrapper:fullscreen .stream-image,
-        .stream-wrapper:-webkit-full-screen .stream-image {
-            width: 100vw;
-            height: 100vh;
-            object-fit: contain;
-            border: 0;
-            border-radius: 0;
-            background: #000;
-        }
+        .stream-wrapper:-webkit-full-screen .stream-image { width: 100vw; height: 100vh; object-fit: contain; border: 0; border-radius: 0; background: #000; }
     </style>
 </head>
 <body>
@@ -171,6 +111,23 @@
     <script>
         const cards = new Map();
 
+        function prettifyCommandName(name) {
+            const map = {
+                lock_screen: '🔒 Блокировка',
+                sleep: '🌙 Сон',
+                reboot: '🔄 Перезагрузка',
+                shutdown: '⏻ Выключение'
+            };
+            return map[name] || name;
+        }
+
+        function prettifyResult(resultText) {
+            if (!resultText) return 'ожидание команды';
+            const cleaned = resultText.replace(/^\[(done|failed|ok|error)\]\s*/i, '').trim();
+            if (/^✅|^❌|^ℹ️/.test(cleaned)) return cleaned;
+            return cleaned;
+        }
+
         async function runCommand(deviceName, command) {
             const response = await fetch(`/api/site/devices/${encodeURIComponent(deviceName)}/commands`, {
                 method: "POST",
@@ -184,6 +141,24 @@
             await loadDevices();
         }
 
+        async function deleteDevice(deviceName) {
+            const ok = confirm(`Удалить устройство '${deviceName}' из панели и базы?`);
+            if (!ok) return;
+
+            const response = await fetch(`/api/site/devices/${encodeURIComponent(deviceName)}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                alert('Не удалось удалить устройство');
+                return;
+            }
+
+            const card = cards.get(deviceName);
+            if (card) card.remove();
+            cards.delete(deviceName);
+        }
+
         function updateCardFields(card, device, latestCommand) {
             const statusClass = device.is_online ? 'online' : 'offline';
             const statusText = device.is_online ? '🟢 Онлайн' : '🔴 Офлайн';
@@ -194,8 +169,10 @@
             card.querySelector('[data-field="battery"]').textContent = `${device.battery}%`;
             card.querySelector('[data-field="processes"]').textContent = device.top_processes.join(', ');
             card.querySelector('[data-field="timestamp"]').textContent = new Date(device.timestamp).toLocaleString();
-            card.querySelector('[data-field="last-command"]').textContent = latestCommand ? `${latestCommand.name} (${latestCommand.status})` : 'нет';
-            card.querySelector('[data-field="result"]').textContent = latestCommand && latestCommand.output ? latestCommand.output : 'ожидание команды';
+            card.querySelector('[data-field="last-command"]').textContent = latestCommand
+                ? `${prettifyCommandName(latestCommand.name)} · ${latestCommand.status_label || latestCommand.status}`
+                : 'нет';
+            card.querySelector('[data-field="result"]').textContent = prettifyResult(latestCommand && latestCommand.output);
         }
 
         async function toggleFullscreen(deviceName) {
@@ -203,14 +180,12 @@
             if (!card) return;
             const wrapper = card.querySelector('.stream-wrapper');
             if (!wrapper) return;
-
             const isFs = document.fullscreenElement === wrapper || document.webkitFullscreenElement === wrapper;
             if (isFs) {
                 if (document.exitFullscreen) await document.exitFullscreen();
                 else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
                 return;
             }
-
             if (wrapper.requestFullscreen) await wrapper.requestFullscreen();
             else if (wrapper.webkitRequestFullscreen) wrapper.webkitRequestFullscreen();
         }
@@ -218,16 +193,13 @@
         function toggleStream(deviceName) {
             const card = cards.get(deviceName);
             if (!card) return;
-
             const block = card.querySelector('.stream-container');
             const isOpen = block.style.display === "block";
-
             if (isOpen) {
                 block.style.display = "none";
                 block.innerHTML = "";
                 return;
             }
-
             block.innerHTML = `
                 <div class="stream-toolbar">
                     <span>📺 Live эфир (${deviceName})</span>
@@ -237,7 +209,6 @@
                     <img class="stream-image" alt="Эфир экрана ${deviceName}" src="/api/site/devices/${encodeURIComponent(deviceName)}/stream">
                 </div>
             `;
-
             block.querySelector('[data-stream-fullscreen]').addEventListener('click', () => toggleFullscreen(deviceName));
             block.style.display = "block";
         }
@@ -247,7 +218,10 @@
             div.className = "device";
             div.dataset.deviceName = deviceName;
             div.innerHTML = `
-                <p><span class="label">Имя:</span> <span data-field="name"></span></p>
+                <div class="device-head">
+                    <div class="device-title" data-field="name"></div>
+                    <button class="fd-btn fd-btn-delete" title="Удалить устройство" aria-label="Удалить устройство" data-delete-device="1">🗑️</button>
+                </div>
                 <p><span class="label">Статус:</span> <span data-field="status"></span></p>
                 <p><span class="label">Аптайм:</span> <span data-field="uptime"></span></p>
                 <p><span class="label">CPU:</span> <span data-field="cpu"></span></p>
@@ -272,6 +246,7 @@
                 btn.addEventListener("click", () => runCommand(deviceName, btn.dataset.command));
             });
             div.querySelector("button[data-stream-toggle]").addEventListener("click", () => toggleStream(deviceName));
+            div.querySelector("button[data-delete-device]").addEventListener("click", () => deleteDevice(deviceName));
             return div;
         }
 
