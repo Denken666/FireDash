@@ -71,9 +71,9 @@ def save_command_result(
     if not command:
         raise HTTPException(status_code=404, detail="Command not found")
 
-    command.status = result.status
-    command.output = result.output
+    command.output = f"[{result.status}] {result.output or ''}".strip()
     command.executed_at = datetime.utcnow()
+    command.status = "waiting"
     session.add(command)
     session.commit()
 

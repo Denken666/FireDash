@@ -1,21 +1,37 @@
 import json
+import time
 from datetime import datetime, timedelta
+from io import BytesIO
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from PIL import Image, ImageDraw
 from pydantic import BaseModel
 from sqlmodel import Session, func, select
 
 from app.Base.db import get_session
 from app.Base.models import DeviceStatus, RemoteCommand
+from app.Base.stream_store import stream_frame_store
 
 router = APIRouter()
 
 ALLOWED_COMMANDS = {"lock_screen", "reboot", "shutdown", "sleep"}
+STREAM_FPS = 15
 
 
 class CreateCommandRequest(BaseModel):
     command: str
+
+
+def build_placeholder_frame(device_name: str) -> bytes:
+    image = Image.new("RGB", (960, 540), color=(20, 20, 20))
+    draw = ImageDraw.Draw(image)
+    draw.text((30, 30), f"{device_name}: нет видеопотока", fill=(255, 255, 255))
+    draw.text((30, 70), "Клиент еще не отправил кадры", fill=(200, 200, 200))
+    buf = BytesIO()
+    image.save(buf, format="JPEG", quality=70)
+    return buf.getvalue()
 
 
 @router.get("/devices")
@@ -100,3 +116,23 @@ def get_latest_command(device_name: str, session: Session = Depends(get_session)
             "executed_at": command.executed_at.isoformat() if command.executed_at else None,
         }
     }
+
+
+@router.get('/devices/{device_name}/stream')
+def get_device_stream(device_name: str):
+    placeholder = build_placeholder_frame(device_name)
+
+    def frame_generator():
+        frame_delay = 1 / STREAM_FPS
+        while True:
+            frame = stream_frame_store.get_frame(device_name=device_name) or placeholder
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+            )
+            time.sleep(frame_delay)
+
+    return StreamingResponse(
+        frame_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )

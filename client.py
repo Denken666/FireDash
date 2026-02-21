@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+from io import BytesIO
 from pathlib import Path
 from shutil import copy2
 
@@ -13,7 +14,7 @@ import GPUtil
 import psutil
 import pystray
 import requests
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageGrab
 
 APP_NAME = "FireDashClient"
 LOG_DIR = Path.home() / ".fire_dash"
@@ -21,6 +22,9 @@ LOG_FILE = LOG_DIR / "client.log"
 INSTALL_FLAG = LOG_DIR / "installed.flag"
 SEND_INTERVAL_SECONDS = 60
 API_BASE_URL = "http://localhost:8000"
+STREAM_FPS = 15
+STREAM_JPEG_QUALITY = 65
+STREAM_MAX_SIZE = (1280, 720)
 
 LOG_DIR.mkdir(exist_ok=True)
 
@@ -40,7 +44,10 @@ class FireDashClient:
         self.send_enabled = True
         self.send_lock = threading.Lock()
         self.worker_thread = threading.Thread(target=self.worker_loop, daemon=True)
+        self.stream_thread = threading.Thread(target=self.stream_loop, daemon=True)
         self.icon = None
+        self.last_executed_command_id = None
+        self.last_stream_error_log_at = 0.0
 
     def copy_to_autostart(self):
         exe_path = Path(sys.executable)
@@ -217,15 +224,60 @@ Terminal=false
 
             command_id = command_info["id"]
             command_name = command_info["name"]
+
+            if command_id == self.last_executed_command_id:
+                logging.info(f"Команда {command_id} уже выполнялась, пропускаю повтор")
+                return
+
             status, output = self.execute_remote_command(command_name)
             requests.post(
                 f"{API_BASE_URL}/api/logs/commands/{command_id}/result",
                 json={"status": status, "output": output},
                 timeout=5,
-            )
+            ).raise_for_status()
+            self.last_executed_command_id = command_id
             logging.info(f"Удаленная команда '{command_name}' завершена: {status}")
         except Exception as e:
             logging.warning(f"Ошибка удаленной команды: {e}")
+
+    def capture_screen_jpeg(self) -> bytes:
+        try:
+            image = ImageGrab.grab(all_screens=True)
+            image = image.convert("RGB")
+            image.thumbnail(STREAM_MAX_SIZE)
+        except Exception:
+            image = Image.new("RGB", STREAM_MAX_SIZE, color=(15, 15, 15))
+            draw = ImageDraw.Draw(image)
+            draw.text((25, 25), "Не удалось захватить экран", fill=(255, 255, 255))
+            draw.text((25, 60), f"OS: {platform.system()}", fill=(200, 200, 200))
+
+        buf = BytesIO()
+        image.save(buf, format="JPEG", quality=STREAM_JPEG_QUALITY)
+        return buf.getvalue()
+
+    def upload_screen_frame(self):
+        device_name = socket.gethostname()
+        frame_bytes = self.capture_screen_jpeg()
+        requests.post(
+            f"{API_BASE_URL}/api/stream/{device_name}/frame",
+            data=frame_bytes,
+            headers={"Content-Type": "image/jpeg"},
+            timeout=3,
+        ).raise_for_status()
+
+    def stream_loop(self):
+        frame_delay = 1 / STREAM_FPS
+        while not self.stop_event.is_set():
+            try:
+                self.upload_screen_frame()
+            except Exception as e:
+                now = time.time()
+                if now - self.last_stream_error_log_at > 30:
+                    logging.warning(f"Ошибка стриминга экрана: {e}")
+                    self.last_stream_error_log_at = now
+
+            if self.stop_event.wait(frame_delay):
+                break
 
     def worker_loop(self):
         while not self.stop_event.is_set():
@@ -257,6 +309,7 @@ Terminal=false
         self.hide_console()
 
         self.worker_thread.start()
+        self.stream_thread.start()
 
         menu = pystray.Menu(
             pystray.MenuItem("Отправка включена", self.toggle_send, checked=self.is_send_enabled),
@@ -269,6 +322,7 @@ Terminal=false
         self.icon = pystray.Icon(APP_NAME, self.create_tray_image(), APP_NAME, menu)
         self.icon.run()
         self.worker_thread.join(timeout=5)
+        self.stream_thread.join(timeout=5)
 
 
 def main():

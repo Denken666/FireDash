@@ -38,6 +38,17 @@
             cursor: pointer;
             background: #fff;
         }
+        .stream-container {
+            margin-top: 0.8rem;
+            display: none;
+        }
+        .stream-container img {
+            width: 100%;
+            max-width: 900px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #111;
+        }
     </style>
 </head>
 <body>
@@ -69,6 +80,24 @@
             return data.command;
         }
 
+        function toggleStream(deviceName) {
+            const targetId = `stream-${deviceName}`;
+            const block = document.getElementById(targetId);
+            const isOpen = block.style.display === "block";
+
+            if (isOpen) {
+                block.style.display = "none";
+                block.innerHTML = "";
+                return;
+            }
+
+            const img = document.createElement("img");
+            img.alt = `Эфир экрана ${deviceName}`;
+            img.src = `/api/site/devices/${encodeURIComponent(deviceName)}/stream`;
+            block.appendChild(img);
+            block.style.display = "block";
+        }
+
         async function loadDevices() {
             const response = await fetch("/api/site/devices");
             const data = await response.json();
@@ -81,6 +110,8 @@
                 const div = document.createElement("div");
                 div.className = "device";
 
+                const streamId = `stream-${device.device_name}`;
+
                 div.innerHTML = `
                     <p><span class="label">Имя:</span> ${device.device_name}</p>
                     <p><span class="label">Статус:</span> <span style="color: ${device.is_online ? 'green' : 'red'};">${device.is_online ? '🟢 Онлайн' : '🔴 Офлайн'}</span></p>
@@ -91,17 +122,23 @@
                     <p><span class="label">Процессы:</span> ${device.top_processes.join(', ')}</p>
                     <p><span class="label">Последний лог:</span> ${new Date(device.timestamp).toLocaleString()}</p>
                     <p><span class="label">Последняя команда:</span> ${latestCommand ? `${latestCommand.name} (${latestCommand.status})` : 'нет'}</p>
+                    <p><span class="label">Результат:</span> ${latestCommand && latestCommand.output ? latestCommand.output : 'ожидание команды'}</p>
                     <div class="actions">
                         <button data-command="lock_screen">🔒 Заблокировать</button>
                         <button data-command="sleep">🌙 Сон</button>
                         <button data-command="reboot">🔄 Перезагрузить</button>
                         <button data-command="shutdown">⏻ Выключить</button>
+                        <button data-stream-toggle="1">📺 Эфир экрана (15 FPS)</button>
                     </div>
+                    <div id="${streamId}" class="stream-container"></div>
                 `;
 
-                div.querySelectorAll("button").forEach(btn => {
+                div.querySelectorAll("button[data-command]").forEach(btn => {
                     btn.addEventListener("click", () => runCommand(device.device_name, btn.dataset.command));
                 });
+
+                const streamButton = div.querySelector("button[data-stream-toggle]");
+                streamButton.addEventListener("click", () => toggleStream(device.device_name));
 
                 container.appendChild(div);
             }
