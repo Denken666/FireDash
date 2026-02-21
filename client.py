@@ -21,6 +21,7 @@ LOG_DIR = Path.home() / ".fire_dash"
 LOG_FILE = LOG_DIR / "client.log"
 INSTALL_FLAG = LOG_DIR / "installed.flag"
 SEND_INTERVAL_SECONDS = 60
+COMMAND_POLL_HZ = 15
 API_BASE_URL = "http://localhost:8000"
 STREAM_FPS = 15
 STREAM_JPEG_QUALITY = 65
@@ -44,6 +45,7 @@ class FireDashClient:
         self.send_enabled = True
         self.send_lock = threading.Lock()
         self.worker_thread = threading.Thread(target=self.worker_loop, daemon=True)
+        self.command_thread = threading.Thread(target=self.command_loop, daemon=True)
         self.stream_thread = threading.Thread(target=self.stream_loop, daemon=True)
         self.icon = None
         self.last_executed_command_id = None
@@ -291,6 +293,18 @@ Terminal=false
             if self.stop_event.wait(SEND_INTERVAL_SECONDS):
                 break
 
+    def command_loop(self):
+        poll_delay = 1 / COMMAND_POLL_HZ
+        while not self.stop_event.is_set():
+            with self.send_lock:
+                enabled = self.send_enabled
+
+            if enabled:
+                self.poll_remote_commands()
+
+            if self.stop_event.wait(poll_delay):
+                break
+
     def stop_app(self, icon=None, item=None):
         logging.info("Остановка клиента")
         self.stop_event.set()
@@ -309,6 +323,7 @@ Terminal=false
         self.hide_console()
 
         self.worker_thread.start()
+        self.command_thread.start()
         self.stream_thread.start()
 
         menu = pystray.Menu(
@@ -322,6 +337,7 @@ Terminal=false
         self.icon = pystray.Icon(APP_NAME, self.create_tray_image(), APP_NAME, menu)
         self.icon.run()
         self.worker_thread.join(timeout=5)
+        self.command_thread.join(timeout=5)
         self.stream_thread.join(timeout=5)
 
 
