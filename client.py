@@ -7,6 +7,7 @@ import threading
 import time
 from pathlib import Path
 from shutil import copy2
+import subprocess
 
 import GPUtil
 import psutil
