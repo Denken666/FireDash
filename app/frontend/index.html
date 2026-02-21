@@ -25,42 +25,162 @@
         .label {
             font-weight: bold;
         }
+        .actions {
+            margin-top: 0.8rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        button {
+            border: 1px solid #c7c7c7;
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            cursor: pointer;
+            background: #fff;
+        }
+        .stream-container {
+            margin-top: 0.8rem;
+            display: none;
+        }
+        .stream-container img {
+            width: 100%;
+            max-width: 900px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #111;
+        }
     </style>
 </head>
 <body>
     <h1>FireDash — Устройства</h1>
-    <div id="devices">
-        <!-- Сюда можно будет вставлять данные с бэка -->
-    </div>
+    <div id="devices"></div>
 
     <script>
+        const cards = new Map();
+
+        async function runCommand(deviceName, command) {
+            const response = await fetch(`/api/site/devices/${encodeURIComponent(deviceName)}/commands`, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({command})
+            });
+
+            if (!response.ok) {
+                alert(`Ошибка отправки команды '${command}'`);
+                return;
+            }
+
+            await loadDevices();
+        }
+
+        async function getLatestCommand(deviceName) {
+            const response = await fetch(`/api/site/devices/${encodeURIComponent(deviceName)}/commands/latest`);
+            if (!response.ok) {
+                return null;
+            }
+            const data = await response.json();
+            return data.command;
+        }
+
+        function updateCardFields(card, device, latestCommand) {
+            card.querySelector('[data-field="status"]').innerHTML =
+                `<span style="color: ${device.is_online ? 'green' : 'red'};">${device.is_online ? '🟢 Онлайн' : '🔴 Офлайн'}</span>`;
+            card.querySelector('[data-field="uptime"]').textContent = device.uptime;
+            card.querySelector('[data-field="cpu"]').textContent = `${device.cpu}%`;
+            card.querySelector('[data-field="gpu"]').textContent = `${device.gpu}%`;
+            card.querySelector('[data-field="battery"]').textContent = `${device.battery}%`;
+            card.querySelector('[data-field="processes"]').textContent = device.top_processes.join(', ');
+            card.querySelector('[data-field="timestamp"]').textContent = new Date(device.timestamp).toLocaleString();
+            card.querySelector('[data-field="last-command"]').textContent = latestCommand ? `${latestCommand.name} (${latestCommand.status})` : 'нет';
+            card.querySelector('[data-field="result"]').textContent = latestCommand && latestCommand.output ? latestCommand.output : 'ожидание команды';
+        }
+
+        function toggleStream(deviceName) {
+            const card = cards.get(deviceName);
+            if (!card) return;
+
+            const block = card.querySelector('.stream-container');
+            const isOpen = block.style.display === "block";
+
+            if (isOpen) {
+                block.style.display = "none";
+                block.innerHTML = "";
+                return;
+            }
+
+            const img = document.createElement("img");
+            img.alt = `Эфир экрана ${deviceName}`;
+            img.src = `/api/site/devices/${encodeURIComponent(deviceName)}/stream`;
+            block.appendChild(img);
+            block.style.display = "block";
+        }
+
+        function createCard(deviceName) {
+            const div = document.createElement("div");
+            div.className = "device";
+            div.dataset.deviceName = deviceName;
+
+            div.innerHTML = `
+                <p><span class="label">Имя:</span> <span data-field="name"></span></p>
+                <p><span class="label">Статус:</span> <span data-field="status"></span></p>
+                <p><span class="label">Аптайм:</span> <span data-field="uptime"></span></p>
+                <p><span class="label">CPU:</span> <span data-field="cpu"></span></p>
+                <p><span class="label">GPU:</span> <span data-field="gpu"></span></p>
+                <p><span class="label">Батарея:</span> <span data-field="battery"></span></p>
+                <p><span class="label">Процессы:</span> <span data-field="processes"></span></p>
+                <p><span class="label">Последний лог:</span> <span data-field="timestamp"></span></p>
+                <p><span class="label">Последняя команда:</span> <span data-field="last-command"></span></p>
+                <p><span class="label">Результат:</span> <span data-field="result"></span></p>
+                <div class="actions">
+                    <button data-command="lock_screen">🔒 Заблокировать</button>
+                    <button data-command="sleep">🌙 Сон</button>
+                    <button data-command="reboot">🔄 Перезагрузить</button>
+                    <button data-command="shutdown">⏻ Выключить</button>
+                    <button data-stream-toggle="1">📺 Эфир экрана (15 FPS)</button>
+                </div>
+                <div class="stream-container"></div>
+            `;
+
+            div.querySelector('[data-field="name"]').textContent = deviceName;
+
+            div.querySelectorAll("button[data-command]").forEach(btn => {
+                btn.addEventListener("click", () => runCommand(deviceName, btn.dataset.command));
+            });
+            div.querySelector("button[data-stream-toggle]").addEventListener("click", () => toggleStream(deviceName));
+            return div;
+        }
+
         async function loadDevices() {
             const response = await fetch("/api/site/devices");
-            const data = await response.json();
-
+            const devices = await response.json();
             const container = document.getElementById("devices");
-            container.innerHTML = "";
+            const seen = new Set();
 
-            data.forEach(device => {
-                const div = document.createElement("div");
-                div.className = "device";
+            for (const device of devices) {
+                const name = device.device_name;
+                seen.add(name);
 
-                div.innerHTML = `
-                    <p><span class="label">Имя:</span> ${device.device_name}</p>
-                    <p><span class="label">Статус:</span> <span style="color: ${device.is_online ? 'green' : 'red'};">${device.is_online ? '🟢 Онлайн' : '🔴 Офлайн'}</span></p>
-                    <p><span class="label">Аптайм:</span> ${device.uptime}</p>
-                    <p><span class="label">CPU:</span> ${device.cpu}%</p>
-                    <p><span class="label">GPU:</span> ${device.gpu}%</p>
-                    <p><span class="label">Батарея:</span> ${device.battery}%</p>
-                    <p><span class="label">Процессы:</span> ${device.top_processes.join(', ')}</p>
-                    <p><span class="label">Последний лог:</span> ${new Date(device.timestamp).toLocaleString()}</p>
-                `;
-                container.appendChild(div);
-            });
+                let card = cards.get(name);
+                if (!card) {
+                    card = createCard(name);
+                    cards.set(name, card);
+                    container.appendChild(card);
+                }
+
+                const latestCommand = await getLatestCommand(name);
+                updateCardFields(card, device, latestCommand);
+            }
+
+            for (const [name, card] of cards.entries()) {
+                if (!seen.has(name)) {
+                    card.remove();
+                    cards.delete(name);
+                }
+            }
         }
 
         loadDevices();
-        setInterval(loadDevices, 10000); // обновление каждые 10 сек
+        setInterval(loadDevices, 5000);
     </script>
 </body>
 </html>
