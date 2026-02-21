@@ -25,15 +25,50 @@
         .label {
             font-weight: bold;
         }
+        .actions {
+            margin-top: 0.8rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        button {
+            border: 1px solid #c7c7c7;
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            cursor: pointer;
+            background: #fff;
+        }
     </style>
 </head>
 <body>
     <h1>FireDash — Устройства</h1>
-    <div id="devices">
-        <!-- Сюда можно будет вставлять данные с бэка -->
-    </div>
+    <div id="devices"></div>
 
     <script>
+        async function runCommand(deviceName, command) {
+            const response = await fetch(`/api/site/devices/${encodeURIComponent(deviceName)}/commands`, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({command})
+            });
+
+            if (!response.ok) {
+                alert(`Ошибка отправки команды '${command}'`);
+                return;
+            }
+
+            await loadDevices();
+        }
+
+        async function getLatestCommand(deviceName) {
+            const response = await fetch(`/api/site/devices/${encodeURIComponent(deviceName)}/commands/latest`);
+            if (!response.ok) {
+                return null;
+            }
+            const data = await response.json();
+            return data.command;
+        }
+
         async function loadDevices() {
             const response = await fetch("/api/site/devices");
             const data = await response.json();
@@ -41,7 +76,8 @@
             const container = document.getElementById("devices");
             container.innerHTML = "";
 
-            data.forEach(device => {
+            for (const device of data) {
+                const latestCommand = await getLatestCommand(device.device_name);
                 const div = document.createElement("div");
                 div.className = "device";
 
@@ -54,13 +90,25 @@
                     <p><span class="label">Батарея:</span> ${device.battery}%</p>
                     <p><span class="label">Процессы:</span> ${device.top_processes.join(', ')}</p>
                     <p><span class="label">Последний лог:</span> ${new Date(device.timestamp).toLocaleString()}</p>
+                    <p><span class="label">Последняя команда:</span> ${latestCommand ? `${latestCommand.name} (${latestCommand.status})` : 'нет'}</p>
+                    <div class="actions">
+                        <button data-command="lock_screen">🔒 Заблокировать</button>
+                        <button data-command="sleep">🌙 Сон</button>
+                        <button data-command="reboot">🔄 Перезагрузить</button>
+                        <button data-command="shutdown">⏻ Выключить</button>
+                    </div>
                 `;
+
+                div.querySelectorAll("button").forEach(btn => {
+                    btn.addEventListener("click", () => runCommand(device.device_name, btn.dataset.command));
+                });
+
                 container.appendChild(div);
-            });
+            }
         }
 
         loadDevices();
-        setInterval(loadDevices, 10000); // обновление каждые 10 сек
+        setInterval(loadDevices, 10000);
     </script>
 </body>
 </html>

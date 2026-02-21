@@ -2,34 +2,35 @@ import logging
 import os
 import platform
 import socket
+import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
 from shutil import copy2
-import subprocess
 
 import GPUtil
 import psutil
-import requests
 import pystray
+import requests
 from PIL import Image, ImageDraw
 
 APP_NAME = "FireDashClient"
-LOG_DIR = Path.home() / '.fire_dash'
-LOG_FILE = LOG_DIR / 'client.log'
-INSTALL_FLAG = LOG_DIR / 'installed.flag'
+LOG_DIR = Path.home() / ".fire_dash"
+LOG_FILE = LOG_DIR / "client.log"
+INSTALL_FLAG = LOG_DIR / "installed.flag"
 SEND_INTERVAL_SECONDS = 60
+API_BASE_URL = "http://localhost:8000"
 
 LOG_DIR.mkdir(exist_ok=True)
 
-with open(str(LOG_DIR / 'pid.txt'), 'w') as f:
+with open(str(LOG_DIR / "pid.txt"), "w") as f:
     f.write(str(os.getpid()))
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.FileHandler(LOG_FILE)]
+    handlers=[logging.FileHandler(LOG_FILE)],
 )
 
 
@@ -44,34 +45,43 @@ class FireDashClient:
     def copy_to_autostart(self):
         exe_path = Path(sys.executable)
         if platform.system() == "Windows":
-            startup = Path(os.getenv('APPDATA')) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
+            startup = (
+                Path(os.getenv("APPDATA"))
+                / "Microsoft"
+                / "Windows"
+                / "Start Menu"
+                / "Programs"
+                / "Startup"
+            )
             startup.mkdir(parents=True, exist_ok=True)
 
-            if getattr(sys, 'frozen', False):
+            if getattr(sys, "frozen", False):
                 target = startup / f"{APP_NAME}.exe"
                 if not target.exists():
                     copy2(exe_path, target)
                     logging.info(f"Скопирован в автозапуск: {target}")
             else:
                 target = startup / f"{APP_NAME}.vbs"
-                pythonw = exe_path.with_name('pythonw.exe')
+                pythonw = exe_path.with_name("pythonw.exe")
                 script_path = Path(__file__).resolve()
                 target.write_text(
                     f'Set WshShell = CreateObject("WScript.Shell")\n'
                     f'WshShell.Run "\"{pythonw}\" \"{script_path}\"", 0, False\n',
-                    encoding='utf-8'
+                    encoding="utf-8",
                 )
                 logging.info(f"Создан vbs-автозапуск: {target}")
         elif platform.system() == "Linux":
-            autostart = Path.home() / '.config' / 'autostart'
+            autostart = Path.home() / ".config" / "autostart"
             autostart.mkdir(parents=True, exist_ok=True)
             target = autostart / f"{APP_NAME}.desktop"
-            target.write_text(f"""[Desktop Entry]
+            target.write_text(
+                f"""[Desktop Entry]
 Type=Application
 Name={APP_NAME}
 Exec={exe_path}
 Terminal=false
-""")
+"""
+            )
             logging.info(f"Создан .desktop автозапуск: {target}")
         else:
             logging.warning("ОС не поддерживается")
@@ -113,10 +123,14 @@ Terminal=false
 
     def get_top_processes(self, n=3):
         try:
-            return [p.info['name'] for p in sorted(
-                psutil.process_iter(['name', 'cpu_percent']),
-                key=lambda x: x.info['cpu_percent'], reverse=True
-            )[:n]]
+            return [
+                p.info["name"]
+                for p in sorted(
+                    psutil.process_iter(["name", "cpu_percent"]),
+                    key=lambda x: x.info["cpu_percent"],
+                    reverse=True,
+                )[:n]
+            ]
         except Exception:
             return []
 
@@ -135,18 +149,83 @@ Terminal=false
             "battery": int(battery.percent) if battery else 100,
             "cpu": psutil.cpu_percent(interval=1),
             "gpu": self.get_gpu_usage(),
-            "uptime": time.strftime('%H:%M:%S', time.gmtime(time.time() - psutil.boot_time())),
-            "top_processes": self.get_top_processes()
+            "uptime": time.strftime("%H:%M:%S", time.gmtime(time.time() - psutil.boot_time())),
+            "top_processes": self.get_top_processes(),
         }
 
     def send_log(self):
         try:
             data = self.collect_data()
-            response = requests.post("http://localhost:8000/api/logs/", json=data, timeout=5)
+            response = requests.post(f"{API_BASE_URL}/api/logs/", json=data, timeout=5)
             response.raise_for_status()
             logging.info(f"Данные отправлены: {data['device_name']} — OK")
         except Exception as e:
             logging.warning(f"Ошибка отправки: {e}")
+
+    def execute_remote_command(self, command: str):
+        current_os = platform.system()
+        try:
+            if command == "lock_screen":
+                if current_os == "Windows":
+                    subprocess.Popen(["rundll32.exe", "user32.dll,LockWorkStation"])
+                elif current_os == "Linux":
+                    subprocess.Popen(["loginctl", "lock-session"])
+                else:
+                    raise RuntimeError(f"Команда lock_screen не поддерживается на {current_os}")
+
+            elif command == "reboot":
+                if current_os == "Windows":
+                    subprocess.Popen(["shutdown", "/r", "/t", "0"])
+                elif current_os == "Linux":
+                    subprocess.Popen(["systemctl", "reboot"])
+                else:
+                    raise RuntimeError(f"Команда reboot не поддерживается на {current_os}")
+
+            elif command == "shutdown":
+                if current_os == "Windows":
+                    subprocess.Popen(["shutdown", "/s", "/t", "0"])
+                elif current_os == "Linux":
+                    subprocess.Popen(["systemctl", "poweroff"])
+                else:
+                    raise RuntimeError(f"Команда shutdown не поддерживается на {current_os}")
+
+            elif command == "sleep":
+                if current_os == "Windows":
+                    subprocess.Popen(["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"])
+                elif current_os == "Linux":
+                    subprocess.Popen(["systemctl", "suspend"])
+                else:
+                    raise RuntimeError(f"Команда sleep не поддерживается на {current_os}")
+            else:
+                raise RuntimeError(f"Неизвестная команда: {command}")
+
+            return "done", "Команда выполнена"
+        except Exception as e:
+            return "failed", str(e)
+
+    def poll_remote_commands(self):
+        device_name = socket.gethostname()
+        try:
+            response = requests.get(
+                f"{API_BASE_URL}/api/logs/{device_name}/commands/next", timeout=5
+            )
+            response.raise_for_status()
+            payload = response.json()
+            command_info = payload.get("command")
+            if not command_info:
+                return
+
+            command_id = command_info["id"]
+            command_name = command_info["name"]
+            status, output = self.execute_remote_command(command_name)
+            requests.post(
+                f"{API_BASE_URL}/api/logs/commands/{command_id}/result",
+                json={"status": status, "output": output},
+                timeout=5,
+            )
+            logging.info(f"Удаленная команда '{command_name}' завершена: {status}")
+        except Exception as e:
+            logging.warning(f"Ошибка удаленной команды: {e}")
 
     def worker_loop(self):
         while not self.stop_event.is_set():
@@ -155,6 +234,7 @@ Terminal=false
 
             if enabled:
                 self.send_log()
+                self.poll_remote_commands()
 
             if self.stop_event.wait(SEND_INTERVAL_SECONDS):
                 break
@@ -166,7 +246,7 @@ Terminal=false
             self.icon.stop()
 
     def create_tray_image(self):
-        image = Image.new('RGB', (64, 64), color=(30, 30, 30))
+        image = Image.new("RGB", (64, 64), color=(30, 30, 30))
         draw = ImageDraw.Draw(image)
         draw.rectangle((8, 8, 56, 56), outline=(255, 80, 80), width=4)
         draw.rectangle((20, 20, 44, 44), fill=(255, 80, 80))
@@ -179,11 +259,11 @@ Terminal=false
         self.worker_thread.start()
 
         menu = pystray.Menu(
-            pystray.MenuItem('Отправка включена', self.toggle_send, checked=self.is_send_enabled),
-            pystray.MenuItem('Выключить отправку', lambda icon, item: self.set_send_enabled(False)),
-            pystray.MenuItem('Включить отправку', lambda icon, item: self.set_send_enabled(True)),
+            pystray.MenuItem("Отправка включена", self.toggle_send, checked=self.is_send_enabled),
+            pystray.MenuItem("Выключить отправку", lambda icon, item: self.set_send_enabled(False)),
+            pystray.MenuItem("Включить отправку", lambda icon, item: self.set_send_enabled(True)),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem('Выход', self.stop_app),
+            pystray.MenuItem("Выход", self.stop_app),
         )
 
         self.icon = pystray.Icon(APP_NAME, self.create_tray_image(), APP_NAME, menu)
@@ -195,5 +275,5 @@ def main():
     FireDashClient().run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
