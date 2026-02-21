@@ -1,6 +1,7 @@
 import psutil, GPUtil, time, requests, socket, platform, logging, os, sys
 from pathlib import Path
 from shutil import copy2
+import subprocess
 
 APP_NAME = "FireDashClient"
 LOG_DIR = Path.home() / '.fire_dash'
@@ -22,7 +23,19 @@ def copy_to_autostart():
     if platform.system() == "Windows":
         startup = Path(os.getenv('APPDATA')) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
         startup.mkdir(parents=True, exist_ok=True)
-        target = startup / f"{APP_NAME}.exe"
+        if getattr(sys, 'frozen', False):
+            target = startup / f"{APP_NAME}.exe"
+        else:
+            target = startup / f"{APP_NAME}.vbs"
+            pythonw = exe_path.with_name('pythonw.exe')
+            script_path = Path(__file__).resolve()
+            target.write_text(
+                f'Set WshShell = CreateObject("WScript.Shell")\n'
+                f'WshShell.Run "\"{pythonw}\" \"{script_path}\"", 0, False\n',
+                encoding='utf-8'
+            )
+            logging.info(f"Создан vbs-автозапуск: {target}")
+            return
     elif platform.system() == "Linux":
         autostart = Path.home() / '.config' / 'autostart'
         autostart.mkdir(parents=True, exist_ok=True)
@@ -56,6 +69,9 @@ def detach_console():
     if platform.system() == "Windows":
         try:
             import ctypes
+            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+            if hwnd:
+                ctypes.windll.user32.ShowWindow(hwnd, 0)
             ctypes.windll.kernel32.FreeConsole()
         except: pass
     elif platform.system() == "Linux":
@@ -65,6 +81,36 @@ def detach_console():
                 sys.exit(0)
             os.setsid()
         except: pass
+
+def relaunch_with_pythonw_if_needed():
+    """На Windows перезапускает скрипт через pythonw.exe, чтобы не показывать консоль."""
+    if platform.system() != "Windows":
+        return
+
+    # Для собранного exe (PyInstaller) это не нужно.
+    if getattr(sys, 'frozen', False):
+        return
+
+    exe_path = Path(sys.executable)
+    if exe_path.name.lower() != 'python.exe':
+        return
+
+    pythonw = exe_path.with_name('pythonw.exe')
+    if not pythonw.exists():
+        return
+
+    if os.environ.get('FIREDASH_PYTHONW') == '1':
+        return
+
+    env = os.environ.copy()
+    env['FIREDASH_PYTHONW'] = '1'
+    subprocess.Popen(
+        [str(pythonw), str(Path(__file__).resolve())],
+        close_fds=True,
+        env=env,
+        creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+    )
+    sys.exit(0)
 
 def get_top_processes(n=3):
     try:
@@ -101,6 +147,7 @@ def send_log():
         logging.warning(f"Ошибка отправки: {e}")
 
 def main():
+    relaunch_with_pythonw_if_needed()
     install_if_needed()
     detach_console()
     while True:
