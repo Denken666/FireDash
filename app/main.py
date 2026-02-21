@@ -1,6 +1,6 @@
 #uvicorn app.main:app --reload
 from fastapi import FastAPI
-from app.api import log_api, site_api
+from app.api import log_api, site_api, stream_api
 from app.Base.db import create_db_and_tables
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -23,6 +23,7 @@ def dashboard():
 # Подключение роутов
 app.include_router(log_api.router, prefix="/api/logs", tags=["Logs"])
 app.include_router(site_api.router, prefix="/api/site", tags=["Site"])
+app.include_router(stream_api.router, prefix="/api/stream", tags=["Stream"])
 
 @app.on_event("startup")
 def on_startup():
