@@ -288,6 +288,7 @@ Terminal=false
 
             if enabled:
                 self.send_log()
+                self.poll_remote_commands()
 
             if self.stop_event.wait(SEND_INTERVAL_SECONDS):
                 break
