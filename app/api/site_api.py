@@ -36,30 +36,50 @@ def build_placeholder_frame(device_name: str) -> bytes:
 
 @router.get("/devices")
 def get_latest_devices(session: Session = Depends(get_session)):
-    subquery = (
+    status_subquery = (
         select(
             DeviceStatus.device_name,
-            func.max(DeviceStatus.timestamp).label("max_time"),
+            func.max(DeviceStatus.timestamp).label("max_status_time"),
         )
         .group_by(DeviceStatus.device_name)
         .subquery()
     )
 
-    stmt = (
+    command_subquery = (
+        select(
+            RemoteCommand.device_name,
+            func.max(RemoteCommand.created_at).label("max_command_time"),
+        )
+        .group_by(RemoteCommand.device_name)
+        .subquery()
+    )
+
+    status_stmt = (
         select(DeviceStatus)
         .join(
-            subquery,
-            (DeviceStatus.device_name == subquery.c.device_name)
-            & (DeviceStatus.timestamp == subquery.c.max_time),
+            status_subquery,
+            (DeviceStatus.device_name == status_subquery.c.device_name)
+            & (DeviceStatus.timestamp == status_subquery.c.max_status_time),
         )
         .order_by(DeviceStatus.device_name)
     )
+    statuses = session.exec(status_stmt).all()
 
-    results = session.exec(stmt).all()
+    latest_command_stmt = (
+        select(RemoteCommand)
+        .join(
+            command_subquery,
+            (RemoteCommand.device_name == command_subquery.c.device_name)
+            & (RemoteCommand.created_at == command_subquery.c.max_command_time),
+        )
+    )
+    commands = session.exec(latest_command_stmt).all()
+    command_by_device = {c.device_name: c for c in commands}
 
     devices = []
     now = datetime.utcnow()
-    for r in results:
+    for r in statuses:
+        latest_command = command_by_device.get(r.device_name)
         devices.append(
             {
                 "id": r.id,
@@ -71,6 +91,18 @@ def get_latest_devices(session: Session = Depends(get_session)):
                 "top_processes": json.loads(r.top_processes),
                 "timestamp": r.timestamp.isoformat(),
                 "is_online": (now - r.timestamp) <= timedelta(seconds=90),
+                "latest_command": {
+                    "id": latest_command.id,
+                    "name": latest_command.command,
+                    "status": latest_command.status,
+                    "output": latest_command.output,
+                    "created_at": latest_command.created_at.isoformat(),
+                    "executed_at": latest_command.executed_at.isoformat()
+                    if latest_command.executed_at
+                    else None,
+                }
+                if latest_command
+                else None,
             }
         )
 
@@ -118,7 +150,7 @@ def get_latest_command(device_name: str, session: Session = Depends(get_session)
     }
 
 
-@router.get('/devices/{device_name}/stream')
+@router.get("/devices/{device_name}/stream")
 def get_device_stream(device_name: str):
     placeholder = build_placeholder_frame(device_name)
 
@@ -126,10 +158,7 @@ def get_device_stream(device_name: str):
         frame_delay = 1 / STREAM_FPS
         while True:
             frame = stream_frame_store.get_frame(device_name=device_name) or placeholder
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
-            )
+            yield b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
             time.sleep(frame_delay)
 
     return StreamingResponse(

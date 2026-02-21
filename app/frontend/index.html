@@ -2,28 +2,147 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FireDash</title>
     <style>
+        :root {
+            --bg-0: #0b0616;
+            --bg-1: #140b29;
+            --bg-2: #1d1038;
+            --card: rgba(33, 20, 62, 0.72);
+            --card-border: rgba(174, 122, 255, 0.28);
+            --text-main: #f3eaff;
+            --text-muted: #b8a2de;
+            --accent: #b06dff;
+            --accent-2: #6f8bff;
+            --success: #43d9a3;
+            --danger: #ff6f91;
+            --shadow: 0 16px 48px rgba(0, 0, 0, 0.42);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            padding: 2rem;
-            background-color: #f5f5f5;
+            margin: 0;
+            min-height: 100vh;
+            font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+            color: var(--text-main);
+            background:
+                radial-gradient(1400px 700px at 100% -10%, rgba(145, 82, 255, 0.22), transparent 55%),
+                radial-gradient(1000px 600px at -20% 0%, rgba(89, 115, 255, 0.2), transparent 60%),
+                linear-gradient(160deg, var(--bg-0) 0%, var(--bg-1) 46%, var(--bg-2) 100%);
+            padding: 28px;
         }
-        h1 {
-            text-align: center;
+
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
         }
+
+        .hero {
+            padding: 20px 22px;
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(102, 53, 183, 0.34), rgba(44, 22, 88, 0.46));
+            backdrop-filter: blur(8px);
+            box-shadow: var(--shadow);
+            margin-bottom: 18px;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: clamp(1.4rem, 2.6vw, 2rem);
+            letter-spacing: 0.2px;
+        }
+
+        .hero p {
+            margin: 8px 0 0;
+            color: var(--text-muted);
+            font-size: 0.96rem;
+        }
+
+        #devices {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 14px;
+        }
+
         .device {
-            background-color: white;
-            border-radius: 10px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            padding: 16px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(10px);
+            transition: transform 0.2s ease, border-color 0.2s ease;
         }
+
+        .device:hover {
+            transform: translateY(-2px);
+            border-color: rgba(191, 145, 255, 0.6);
+        }
+
         .device p {
-            margin: 0.3rem 0;
+            margin: 0.32rem 0;
+            color: #e9dcff;
         }
+
         .label {
-            font-weight: bold;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-right: 6px;
+        }
+
+        .actions {
+            margin-top: 0.95rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: 1px solid rgba(198, 168, 255, 0.3);
+            border-radius: 10px;
+            padding: 0.45rem 0.72rem;
+            color: var(--text-main);
+            cursor: pointer;
+            background: linear-gradient(180deg, rgba(146, 96, 229, 0.33), rgba(87, 46, 150, 0.33));
+            transition: transform 0.15s ease, filter 0.15s ease, border-color 0.15s ease;
+        }
+
+        button:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+            border-color: rgba(223, 197, 255, 0.62);
+        }
+
+        button[data-command="shutdown"] {
+            background: linear-gradient(180deg, rgba(188, 67, 123, 0.45), rgba(118, 28, 68, 0.45));
+            border-color: rgba(255, 149, 186, 0.38);
+        }
+
+        .stream-container {
+            margin-top: 0.9rem;
+            display: none;
+        }
+
+        .stream-container img {
+            width: 100%;
+            max-width: 900px;
+            border: 1px solid rgba(212, 187, 255, 0.24);
+            border-radius: 12px;
+            background: #0f0b1b;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+        }
+
+        .online {
+            color: var(--success);
+        }
+
+        .offline {
+            color: var(--danger);
         }
         .actions {
             margin-top: 0.8rem;
@@ -52,8 +171,14 @@
     </style>
 </head>
 <body>
-    <h1>FireDash — Устройства</h1>
-    <div id="devices"></div>
+    <div class="page">
+        <div class="hero">
+            <h1>🔥 FireDash Control Center</h1>
+            <p>Мониторинг устройств, удалённые команды и live‑эфир экрана в тёмно‑фиолетовом интерфейсе.</p>
+        </div>
+
+        <div id="devices"></div>
+    </div>
 
     <script>
         const cards = new Map();
@@ -72,19 +197,10 @@
 
             await loadDevices();
         }
-
-        async function getLatestCommand(deviceName) {
-            const response = await fetch(`/api/site/devices/${encodeURIComponent(deviceName)}/commands/latest`);
-            if (!response.ok) {
-                return null;
-            }
-            const data = await response.json();
-            return data.command;
-        }
-
         function updateCardFields(card, device, latestCommand) {
-            card.querySelector('[data-field="status"]').innerHTML =
-                `<span style="color: ${device.is_online ? 'green' : 'red'};">${device.is_online ? '🟢 Онлайн' : '🔴 Офлайн'}</span>`;
+            const statusClass = device.is_online ? 'online' : 'offline';
+            const statusText = device.is_online ? '🟢 Онлайн' : '🔴 Офлайн';
+            card.querySelector('[data-field="status"]').innerHTML = `<span class="${statusClass}">${statusText}</span>`;
             card.querySelector('[data-field="uptime"]').textContent = device.uptime;
             card.querySelector('[data-field="cpu"]').textContent = `${device.cpu}%`;
             card.querySelector('[data-field="gpu"]').textContent = `${device.gpu}%`;
@@ -167,8 +283,7 @@
                     container.appendChild(card);
                 }
 
-                const latestCommand = await getLatestCommand(name);
-                updateCardFields(card, device, latestCommand);
+                updateCardFields(card, device, device.latest_command);
             }
 
             for (const [name, card] of cards.entries()) {
