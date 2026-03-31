@@ -7,6 +7,7 @@ APP_NAME = "FireDashClient"
 LOG_DIR = Path.home() / '.fire_dash'
 LOG_FILE = LOG_DIR / 'client.log'
 INSTALL_FLAG = LOG_DIR / 'installed.flag'
+SERVER_API_URL = "http://192.168.1.10:8000/api/logs/"
 LOG_DIR.mkdir(exist_ok=True)
 
 with open(str(Path.home() / '.fire_dash' / 'pid.txt'), 'w') as f:
@@ -140,7 +141,7 @@ def collect_data():
 def send_log():
     try:
         data = collect_data()
-        r = requests.post("http://localhost:8000/api/logs/", json=data, timeout=5)
+        r = requests.post(SERVER_API_URL, json=data, timeout=5)
         r.raise_for_status()
         logging.info(f"Данные отправлены: {data['device_name']} — OK")
     except Exception as e:
